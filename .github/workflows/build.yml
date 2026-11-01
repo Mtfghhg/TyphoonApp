@@ -1,0 +1,70 @@
+name: Build APK
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install System Dependencies & Fix Pip
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev wget
+        
+        # 锁定 pip 版本
+        python -m pip install --upgrade pip
+        pip install "pip<24.0"
+        pip install --upgrade cython buildozer
+
+    - name: Setup Swap safely (Anti-OOM)
+      run: |
+        # 创建 6GB 虚拟内存，为多核编译保驾护航
+        sudo swapoff -a || true
+        sudo rm -f /swapfile || true
+        sudo dd if=/dev/zero of=/swapfile bs=1M count=6144
+        sudo chmod 600 /swapfile
+        sudo mkswap /swapfile
+        sudo swapon /swapfile
+
+    - name: Setup Android SDK Manager Manually
+      run: |
+        mkdir -p $HOME/.buildozer/android/platform/android-sdk/cmdline-tools
+        cd $HOME/.buildozer/android/platform/android-sdk/cmdline-tools
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+        unzip -q commandlinetools-linux-11076708_latest.zip
+        mv cmdline-tools latest
+        mkdir -p $HOME/.buildozer/android/platform/android-sdk/tools/bin
+        ln -sf $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+
+    - name: Accept Licenses & Pre-install SDK
+      run: |
+        export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+        export PATH=$PATH:$HOME/.buildozer/android/platform/android-sdk/tools/bin
+        
+        # 直接写入许可证，跳过 Broken pipe 报错
+        mkdir -p $HOME/.buildozer/android/platform/android-sdk/licenses
+        printf "\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c2829b004d1fee" > "$HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license"
+        printf "\n84831b9409646a918e30573bab4c9c91346d8abd" > "$HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license"
+        
+        sdkmanager --sdk_root=$HOME/.buildozer/android/platform/android-sdk "platform-tools" "build-tools;34.0.0" "platforms;android-34"
+
+    - name: Build with Buildozer
+      run: |
+        export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+        # 【核心】开启 4 核并行编译，直接起飞
+        export MAKEFLAGS="-j4"
+        export OMP_NUM_THREADS=4
+        buildozer -v android debug
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: package
+        path: bin/*.apk

@@ -1,0 +1,49 @@
+name: Build APK
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install System Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev wget
+        python -m pip install --upgrade pip
+        pip install --upgrade cython buildozer
+
+    - name: Setup Android SDK Manager Manually
+      run: |
+        # 1. 创建目录
+        mkdir -p $HOME/.buildozer/android/platform/android-sdk/cmdline-tools
+        cd $HOME/.buildozer/android/platform/android-sdk/cmdline-tools
+        
+        # 2. 直接下载官方命令行工具
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+        
+        # 3. 解压并重命名
+        unzip -q commandlinetools-linux-11076708_latest.zip
+        mv cmdline-tools latest
+        
+        # 4. 建立 Buildozer 需要的软链接，骗过它的检查
+        mkdir -p $HOME/.buildozer/android/platform/android-sdk/tools/bin
+        ln -sf $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+
+    - name: Accept Licenses & Build
+      run: |
+        # 自动接受所有许可协议并开始编译
+        yes | buildozer -v android debug
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: package
+        path: bin/*.apk

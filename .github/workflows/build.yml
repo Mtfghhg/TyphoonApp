@@ -1,0 +1,40 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+      GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4G -Dorg.gradle.daemon=false"
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # 核心：必须显式安装 flet 命令行工具
+          pip install flet
+          pip install -r requirements.txt
+
+      - name: Build APK
+        # 这里不加 --arch，因为你的 pyproject.toml 里已经配置了
+        run: |
+          flet build apk --no-rich-output
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: build/apk/*.apk

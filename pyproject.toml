@@ -1,0 +1,10 @@
+[tool.flet]
+app_name = "TyphoonApp"
+icon = "assets/icon.png"
+
+[tool.flet.app]
+path = "."
+
+[tool.flet.android]
+# 强制解压这两个二进制库，防止安卓端报找不到文件的错
+extract_packages = ["cv2", "imageio_ffmpeg"]

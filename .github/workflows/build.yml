@@ -1,0 +1,41 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 【核心修复】：提前安装好 Flutter，防止 Flet 内部下载失败导致 NoneType 报错
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flet==0.24.1
+          pip install -r requirements.txt
+
+      - name: Build APK
+        run: |
+          # 加 --yes 防止任何交互卡死
+          flet build apk --yes --no-rich-output
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: build/apk/*.apk

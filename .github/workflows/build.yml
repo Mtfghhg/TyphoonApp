@@ -1,0 +1,27 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          
+      - name: Install Flet
+        run: pip install flet
+        
+      - name: Build APK
+        # 加上 --no-rich-output 防止终端编码导致管道破裂报错
+        run: flet build apk --no-rich-output
+        
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: build/apk/*.apk

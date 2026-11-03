@@ -1,4 +1,0 @@
-flet
-opencv-python
-numpy
-pillow

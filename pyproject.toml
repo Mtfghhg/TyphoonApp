@@ -1,0 +1,10 @@
+[tool.flet]
+app_name = "TyphoonApp"
+icon = "assets/icon.png"
+
+[tool.flet.app]
+path = "."
+
+[tool.flet.android]
+extract_packages = ["cv2"]
+platforms = ["android-arm64-v8a"]

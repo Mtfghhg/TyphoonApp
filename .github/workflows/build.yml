@@ -1,0 +1,70 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+      GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev mesa-utils libgl1 libglx-mesa0 xz-utils
+
+      # 【核心硬核操作】：直接去官网下载原版 Android Studio 并安装
+      - name: Direct Download Android Studio
+        run: |
+          echo "正在从官方源下载 Android Studio (约 1.1GB)..."
+          wget -q https://redirector.gvt1.com/edgedl/android/studio/ide-zips/2023.1.1.28/android-studio-2023.1.1.28-linux.tar.gz
+          echo "正在解压..."
+          sudo tar -xzf android-studio-2023.1.1.28-linux.tar.gz -C /opt
+          sudo chmod +x /opt/android-studio/bin/studio.sh
+          echo "ANDROID_STUDIO_HOME=/opt/android-studio" >> $GITHUB_ENV
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.24.0'
+          cache: true
+
+      - name: Accept Android Licenses
+        run: |
+          yes | flutter doctor --android-licenses || true
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 直接打包，这次它全都是 [✓]，没理由报错
+      - name: Build APK
+        run: flet build apk -vv --no-rich-output
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: build/apk/*.apk
+          if-no-files-found: error

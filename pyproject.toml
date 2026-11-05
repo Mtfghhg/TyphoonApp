@@ -1,0 +1,6 @@
+[tool.flet]
+app_name = "TyphoonApp"
+icon = "assets/icon.png"
+
+[tool.flet.app]
+path = "."

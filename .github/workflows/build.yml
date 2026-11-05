@@ -1,0 +1,50 @@
+name: Build APK
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Linux Dependencies
+        run: |
+          sudo apt-get update
+          # 安装 Flutter 构建所需的系统依赖，包括图形库 mesa-utils
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev mesa-utils
+
+      # 核心修复：提升 inotify 监视限制，防止构建时因文件监听耗尽而崩溃
+      - name: Increase Inotify Limits
+        run: |
+          echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf
+          echo fs.inotify.max_user_instances=512 | sudo tee -a /etc/sysctl.conf
+          sudo sysctl -p
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build APK
+        run: flet build apk --verbose --no-rich-output
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: build/apk/*.apk
+          if-no-files-found: error

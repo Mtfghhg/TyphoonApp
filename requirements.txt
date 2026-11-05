@@ -1,5 +1,0 @@
-flet
-opencv-python-headless
-numpy
-pillow
-imageio-ffmpeg

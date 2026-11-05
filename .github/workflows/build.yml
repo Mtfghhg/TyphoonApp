@@ -1,0 +1,59 @@
+name: Build APK
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 1. 锁定稳定的 Java 版本
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      # 2. 安装系统依赖 (注意用 libgl1 替代旧的 libgl1-mesa-glx)
+      - name: Install Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev mesa-utils libgl1 libglx-mesa0
+
+      # 3. 锁定 Flutter 版本，避免因版本不匹配导致 Gradle 编译失败
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.24.0' # 锁定一个与 Flet 0.24.1 兼容的稳定版本
+          cache: true
+
+      - name: Accept Android Licenses
+        run: yes | flutter doctor --android-licenses || true
+
+      # 4. 安装 Python 依赖 (保持 headless 版本)
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 5. 核心修复：为 Gradle 分配更多内存，防止编译时 OOM
+      - name: Build APK
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.daemon=false" # 分配 4GB 内存给 Gradle
+        run: flet build apk -vv --no-rich-output
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: build/apk/*.apk
+          if-no-files-found: error

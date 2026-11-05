@@ -1,0 +1,46 @@
+name: Build APK
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. 设置 Python 环境（指定 3.11 版本）
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 2. 设置 Java 环境（Flet 打包 Android 必需）
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      # 3. 安装 Linux 系统依赖（确保编译工具链完整）
+      - name: Install Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev mesa-utils
+
+      # 4. 使用 Flet 官方 Action 进行打包（会自动处理 Flutter SDK 等）
+      - name: Build APK
+        uses: flet-dev/flet-build-action@v1
+        with:
+          target: apk
+          # 如果需要指定 Flutter 版本，可以取消注释下一行
+          # flutter-version: '3.24.0'
+
+      # 5. 上传构建好的 APK
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: build/apk/*.apk
+          if-no-files-found: error

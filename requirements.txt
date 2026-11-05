@@ -1,0 +1,4 @@
+flet==0.24.1
+opencv-python-headless
+numpy
+pillow

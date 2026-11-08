@@ -1,0 +1,73 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    env:
+      # 强制使用 Node.js 24 运行 Actions，规避弃用警告
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+    - uses: actions/checkout@v4
+
+    # 1. 下载并解压你的原版包
+    - name: Download and Unzip App
+      run: |
+        wget "https://github.com/Mtfghhg/TyphoonApp/releases/download/v1.0/Typhoon_sim1.3.3.zip" -O app.zip
+        unzip -q app.zip -d ./build_dir
+        rm app.zip
+        
+        MAIN_PATH=$(find ./build_dir -name "main.py" | head -n 1)
+        if [ -z "$MAIN_PATH" ]; then
+          echo "找不到 main.py"
+          exit 1
+        fi
+        APP_ROOT=$(dirname "$MAIN_PATH")
+        echo "APP_ROOT=$APP_ROOT" >> $GITHUB_ENV
+
+    # 2. 打手机触摸补丁 (确保你的 patch_main.py 已创建)
+    - name: Patch Mobile Main.py
+      run: python patch_main.py
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    # 3. 升级 Java 环境至 v5
+    - name: Set up Java 17
+      uses: actions/setup-java@v5
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    # 4. 安装系统依赖（清理无效包，替换为可用包）
+    - name: Install System Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev
+
+    # 5. 安装 Python 打包工具
+    - name: Install Buildozer
+      run: |
+        pip3 install --user --upgrade buildozer cython virtualenv
+
+    # 6. 一键打包
+    - name: Build with Buildozer
+      run: |
+        export PATH=$PATH:~/.local/bin
+        cd ${{ env.APP_ROOT }}
+        cp $GITHUB_WORKSPACE/buildozer.spec .
+        # 加上 --verbose 参数，方便查看详细日志
+        buildozer --verbose android debug
+
+    # 7. 上传 APK
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: Typhoon-APK
+        path: ./build_dir/**/bin/*.apk

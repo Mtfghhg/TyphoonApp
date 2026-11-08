@@ -1,0 +1,76 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        lfs: true
+
+    - name: Download and Unzip App
+      run: |
+        echo "=== 1. 正在下载压缩包 ==="
+        wget "https://github.com/Mtfghhg/TyphoonApp/releases/download/v1.0/Typhoon_sim1.3.3.zip" -O app.zip
+        echo "=== 2. 下载完成，正在解压 ==="
+        unzip -q app.zip -d ./build_dir
+        rm app.zip
+        
+        echo "=== 3. 查找 main.py ==="
+        MAIN_PATH=$(find ./build_dir -name "main.py" | head -n 1)
+        if [ -z "$MAIN_PATH" ]; then
+          echo "❌ 严重错误：解压后找不到 main.py！你的压缩包里可能套娃了！"
+          find ./build_dir -type f | head -n 20
+          exit 1
+        fi
+        APP_ROOT=$(dirname "$MAIN_PATH")
+        echo "✅ 找到核心目录: $APP_ROOT"
+        echo "APP_ROOT=$APP_ROOT" >> $GITHUB_ENV
+
+    - name: Patch Mobile Main.py
+      run: |
+        echo "=== 4. 正在给原版代码打触摸补丁 ==="
+        if [ ! -f "patch_main.py" ]; then
+          echo "❌ 严重错误：仓库根目录缺少 patch_main.py 文件！"
+          exit 1
+        fi
+        python patch_main.py
+        echo "=== 5. 补丁执行完毕 ==="
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Set up Java 17
+      uses: actions/setup-java@v5
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    - name: Install System Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git zip unzip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev
+        pip3 install --user --upgrade buildozer cython virtualenv
+
+    - name: Build with Buildozer
+      run: |
+        echo "=== 6. 开始执行 Buildozer 编译 ==="
+        export PATH=$PATH:~/.local/bin
+        cd ${{ env.APP_ROOT }}
+        cp $GITHUB_WORKSPACE/buildozer.spec .
+        buildozer -v android debug
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: Typhoon-APK
+        path: ./build_dir/**/bin/*.apk
